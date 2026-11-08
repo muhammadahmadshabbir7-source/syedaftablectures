@@ -1695,6 +1695,19 @@
             return 999;
         }
 
+        // Lectures that must always be shown first (in this order), matched by title keywords.
+        const PINNED_LECTURES = [
+            ['guest speaker', 'national defence university', 'pmdp'],
+            ['technical presenter', 'national defence university', 'project director certification']
+        ];
+
+        function getPinnedRank(item) {
+            if (!item || item.type !== 'Seminar') return 999;
+            const title = (item.title || '').toLowerCase();
+            const idx = PINNED_LECTURES.findIndex(keys => keys.every(k => title.includes(k)));
+            return idx === -1 ? 999 : idx;
+        }
+
         function renderRecords() {
             recordsContainer.innerHTML = '';
             if (!filteredData.length) {
@@ -1709,6 +1722,11 @@
                 const typeA = typeOrder[a.type] || 999;
                 const typeB = typeOrder[b.type] || 999;
                 if (typeA !== typeB) return typeA - typeB;
+
+                // Pinned lectures always come first within their type
+                const pinA = getPinnedRank(a);
+                const pinB = getPinnedRank(b);
+                if (pinA !== pinB) return pinA - pinB;
 
                 // Within same type, sort by category (certificates use a fixed priority order, others alphabetical)
                 if (a.category !== b.category) {
@@ -1726,9 +1744,19 @@
 
             const visibleData = sortedData.slice(0, visibleRecordLimit);
 
+            // Pinned lectures are rendered first, without a category heading
+            const pinnedItems = visibleData.filter(item => getPinnedRank(item) !== 999);
+            let typeIndexStart = 1;
+            pinnedItems.forEach(item => {
+                const card = document.createElement('article');
+                card.className = 'timeline-item';
+                card.innerHTML = renderTrainingCard(item, typeIndexStart++, 'Seminar');
+                recordsContainer.appendChild(card);
+            });
+
             // Group by type and category
             const groupedByTypeAndCategory = {};
-            visibleData.forEach(item => {
+            visibleData.filter(item => getPinnedRank(item) === 999).forEach(item => {
                 const typeKey = item.type || 'Seminar';
                 const categoryKey = item.category;
                 
@@ -1756,7 +1784,7 @@
                         return a.localeCompare(b);
                     })
                     : Object.keys(categories).sort();
-                let typeIndex = 1; // Reset index for each type
+                let typeIndex = typeKey === 'Seminar' ? typeIndexStart : 1; // Reset index for each type
 
                 sortedCategories.forEach((category, categoryIndex) => {
                     const categoryHeading = document.createElement('div');
